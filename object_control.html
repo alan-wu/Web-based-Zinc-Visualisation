@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en" style="height:100%">
+	<head>
+		<title>Simple Zinc WebGL Demo</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				font-family: Monospace;
+				background-color: #000;
+				color: #fff;
+				margin: 0px;
+				overflow: hidden;
+			}
+			#info {
+				color: #fff;
+				position: absolute;
+				top: 10px;
+				width: 100%;
+				text-align: center;
+				z-index: 100;
+				display:block;
+			}
+			#info a, .button { color: #f00; font-weight: bold; text-decoration: underline; cursor: pointer }
+		</style>
+	</head>
+
+	<body style="height:100%">
+
+		<p id='myText'>Zinc WebGL Demo </p>
+		<button name="Reset View" value="OK" type="button" onclick="resetView()">Reset View</button>
+		<button name="View All" value="OK" type="button" onclick="viewAll()">View All</button>
+		<button name="deforming_heart" value="deforming_heart" type="button" onclick="loadMyModel(this.value)">Deforming Heart</button>
+		<script src="js/three.min.js"></script>
+		<script src="js/zinc_threejs_control.js"></script>
+		<script src="js/zinc_3js_renderer.js"></script>
+		<script>
+			var currentModel = undefined;
+			var localGeometry = undefined;
+			container = document.createElement( 'div' );
+			document.body.appendChild( container );
+			container.style.height = "100%"
+
+			zincRenderer = new Zinc.Renderer(container, window);
+			Zinc.defaultMaterialColor = 0xFFFF9C
+			zincRenderer.initialiseVisualisation();
+			var scene = zincRenderer.createScene("testing");
+			scene.loadFromViewURL("models/deforming_heart", meshReady);
+			zincRenderer.setCurrentScene(scene);
+			zincRenderer.animate();
+			
+			function meshReady(zincGeometry) {
+				var scene = zincRenderer.getCurrentScene();
+				var cameraControl = scene.getZincCameraControls();
+				cameraControl.enableObjectControl(zincGeometry);
+				localGeometry = zincGeometry;
+			}
+			
+			
+			function loadMyModel(model_name) {
+				if (currentModel != model_name) {
+					var scene = zincRenderer.getSceneByName(model_name)
+					if (scene == undefined) {
+						scene = zincRenderer.createScene(model_name);
+						scene.loadFromViewURL("models/"+model_name, meshReady);
+					} else {
+						scene.resetView();
+					}
+					zincRenderer.addActiveScene(scene);
+				}
+			}
+			
+			function resetView()
+			{
+				localGeometry.resetLocalTransformation();
+				zincRenderer.resetView();
+			}
+			
+			function viewAll()
+			{
+				zincRenderer.viewAll();
+			}
+
+		</script>
+
+	</body>
+</html>

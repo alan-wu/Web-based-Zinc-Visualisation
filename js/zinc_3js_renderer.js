@@ -442,6 +442,8 @@ Zinc.Geometry = function () {
 	this.clipAction = undefined;
 	this.duration = 3000;
 	this.groupName = undefined;
+	this.displayMesh = new THREE.Group();
+	this.rotationHandle = new THREE.Group();
 	var inbuildTime = 0;
 	var _this = this;
 	
@@ -537,6 +539,38 @@ Zinc.Geometry = function () {
 		_this.geometry.colorsNeedUpdate = true;
 	}
 	
+	var findCentroid = function(mesh)
+	{
+		geometry = mesh.geometry;
+		geometry.computeBoundingBox();
+		
+		var centerX = 0.5 * ( geometry.boundingBox.min.x + geometry.boundingBox.max.x );
+		var centerY = 0.5 * ( geometry.boundingBox.min.y + geometry.boundingBox.max.y );
+		var centerZ = 0.5 * ( geometry.boundingBox.min.z + geometry.boundingBox.max.z );
+		return [ centerX, centerY, centerZ];
+	}
+	
+	this.resetLocalTransformation = function() {
+		var center = findCentroid(_this.morph);
+		_this.morph.position.set(-center[0], -center[1],-center[2]);
+		_this.rotationHandle.rotation.x = 0;
+		_this.rotationHandle.rotation.y = 0;
+		_this.rotationHandle.rotation.z = 0;
+		_this.displayMesh.position.set(center[0], center[1], center[2]);
+	}
+	
+	this.setMesh = function(meshIn) {
+		_this.morph = meshIn;
+		_this.rotationHandle.add(_this.morph);
+		_this.displayMesh.add(_this.rotationHandle);
+		_this.resetLocalTransformation();
+	}
+	
+	this.getDisplayMesh = function() {
+		return _this.displayMesh;
+		
+	}
+	
 	getColorsRGB = function(colors, index)
 	{
 		var index_in_colors = Math.floor(index/3);
@@ -597,7 +631,7 @@ Zinc.Geometry = function () {
 	
 	this.getBoundingBox = function() {
 		if (_this.morph)
-			return new THREE.Box3().setFromObject(_this.morph);
+			return new THREE.Box3().setFromObject(_this.displayMesh);
 		return undefined;
 	}
 	
@@ -644,7 +678,6 @@ Zinc.Scene = function ( containerIn, rendererIn) {
 	this.ambient = undefined;
 	this.camera = undefined;
 	var duration = 3000;
-	var centroid = [0, 0, 0];
 	var zincCameraControls = undefined;
 	var num_inputs = 0;
 	var startingId = 1000;
@@ -674,7 +707,6 @@ Zinc.Scene = function ( containerIn, rendererIn) {
 		}
 		return [totalSize, totalLoaded, errorDownload];
 	}
-	
 	
 	this.onProgress = function(id) {
 	    return function(xhr){
@@ -773,6 +805,7 @@ Zinc.Scene = function ( containerIn, rendererIn) {
 			var viewport= zincCameraControls.getViewportFromCentreAndRadius(centreX, centreY, centreZ, radius, 40, radius * clip_factor );
 			
 			zincCameraControls.setCurrentCameraSettings(viewport);
+			zincCameraControls.updateDirectionalLight();
 		}
 	}
 
@@ -926,17 +959,6 @@ Zinc.Scene = function ( containerIn, rendererIn) {
 		xmlhttp.send();
 	}
 	
-	var setPositionOfObject = function(mesh)
-	{
-		geometry = mesh.geometry;
-		geometry.computeBoundingBox();
-		
-		var centerX = 0.5 * ( geometry.boundingBox.min.x + geometry.boundingBox.max.x );
-		var centerY = 0.5 * ( geometry.boundingBox.min.y + geometry.boundingBox.max.y );
-		var centerZ = 0.5 * ( geometry.boundingBox.min.z + geometry.boundingBox.max.z );
-		centroid = [ centerX, centerY, centerZ]
-	}
-	
 	this.addZincGeometry = function(geometry, modelId, colour, opacity, localTimeEnabled, localMorphColour, external, finishCallback, materialIn) {
 		if (external == undefined)
 			external = true	
@@ -953,15 +975,15 @@ Zinc.Scene = function ( containerIn, rendererIn) {
 			material = new THREE.MeshPhongMaterial( { color: colour, morphTargets: localTimeEnabled, morphNormals: false, vertexColors: THREE.VertexColors, transparent: isTransparent, opacity: opacity });
 		}
 		material.side = THREE.DoubleSide;
-		var mesh = undefined;
-		mesh = new THREE.Mesh( geometry, material );
+
 		
 		if (geometry instanceof THREE.Geometry ) {
 			geometry.computeMorphNormals();
 		}
 		
-		setPositionOfObject(mesh);
-		scene.add( mesh );
+		var mesh = undefined;
+		mesh = new THREE.Mesh( geometry, material );
+		
 		var newGeometry = new Zinc.Geometry();
 		var mixer = new THREE.AnimationMixer(mesh);
 		var clipAction = undefined;
@@ -975,9 +997,10 @@ Zinc.Scene = function ( containerIn, rendererIn) {
 		newGeometry.timeEnabled = localTimeEnabled;
 		newGeometry.morphColour = localMorphColour;
 		newGeometry.modelId = modelId;
-		newGeometry.morph = mesh;
+		newGeometry.setMesh(mesh);
 		newGeometry.mixer = mixer;
 		newGeometry.clipAction = clipAction;
+		scene.add( newGeometry.getDisplayMesh() );
 		zincGeometries.push ( newGeometry ) ;
 		
 		if (finishCallback != undefined && (typeof finishCallback == 'function'))
@@ -1423,7 +1446,6 @@ Zinc.Renderer = function (containerIn, window) {
 		}
 	}
 };
-
 
 //Convenient function
 function loadExternalFile(url, data, callback, errorCallback) {
